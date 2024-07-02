@@ -5,15 +5,20 @@ require 'api/ApiInterface.php';
 require 'api/CoinMarketCapApi.php';
 require 'api/CoingeckoApi.php';
 require 'storage/TransactionLogger.php';
-require 'CryptoManager.php';
-require 'User.php';
-require 'CryptoController.php';
+require 'manager/CryptoManager.php';
+require 'user/User.php';
+require 'Controller/CryptoController.php';
 
+use Dotenv\Dotenv;
 use App\Controller\CryptoController;
 use App\Service\CryptoManager;
+use App\user\User;
 use FastRoute\RouteCollector;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
+
+
+
 
 $loader = new FilesystemLoader(__DIR__ . '/views');
 $twig = new Environment($loader, [
@@ -25,19 +30,22 @@ $pdo = new PDO('sqlite:' . $dbFile);
 $user = new User($pdo);
 $user->id = 1;
 $logger = new TransactionLogger($dbFile);
-$api = new CoinMarketCapApi("ccb58a8c-61b0-4c84-8289-5e562a8476a1");
-
+$dotenv = Dotenv::createImmutable(__DIR__);
+$dotenv->load();
+$apiKey = $_ENV['API_KEY'];
+$api = new CoinMarketCapApi($apiKey);
 $cryptoManager = new CryptoManager($api, $pdo, $user, $logger);
-
 $cryptoController = new CryptoController( $cryptoManager,$twig);
 
+
+
 $dispatcher = FastRoute\simpleDispatcher(function(RouteCollector $r) {
-    $r->addRoute('GET', '/top', [CryptoController::class, 'getTopCryptos']);
-    $r->addRoute('GET', '/search', [CryptoController::class, 'searchCryptos']);
-    $r->addRoute('GET', '/buy', [CryptoController::class, 'buyCrypto']);
-    $r->addRoute('GET', '/sell', [CryptoController::class, 'sellCrypto']);
-    $r->addRoute('GET', '/wallet', [CryptoController::class, 'showWallet']);
-    $r->addRoute('GET', '/transactions', [CryptoController::class, 'showTransactions']);
+    $routes = include('routes.php');
+    foreach ($routes as $route)
+    {
+        [$method, $url, $controller] = $route;
+        $r->addRoute($method, $url, $controller);
+    }
 });
 
 $httpMethod = $_SERVER['REQUEST_METHOD'];
